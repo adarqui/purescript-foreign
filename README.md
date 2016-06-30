@@ -4,6 +4,11 @@
 [![Build Status](https://travis-ci.org/purescript/purescript-foreign.svg?branch=master)](https://travis-ci.org/purescript/purescript-foreign)
 [![Dependency Status](https://www.versioneye.com/user/projects/55848c14363861001d00030e/badge.svg?style=flat)](https://www.versioneye.com/user/projects/55848c14363861001d00030e)
 
+
+**MODIFIED**
+
+Adds instances for Maybe and Tuple.
+
 Library for dealing with foreign data (JSON and JavaScript objects).
 
 ## Installation

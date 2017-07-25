@@ -2,10 +2,11 @@
 -- | data.
 
 module Data.Foreign
-  ( Foreign()
+  ( Foreign
   , ForeignError(..)
-  , F()
-  , parseJSON
+  , MultipleErrors(..)
+  , F
+  , renderForeignError
   , toForeign
   , unsafeFromForeign
   , unsafeReadTagged
@@ -20,14 +21,21 @@ module Data.Foreign
   , readNumber
   , readInt
   , readArray
+  , readNull
+  , readUndefined
+  , readNullOrUndefined
+  , fail
   ) where
 
 import Prelude
 
+import Control.Monad.Except (Except, throwError, mapExcept)
+
 import Data.Either (Either(..), either)
-import Data.Function.Uncurried (Fn3, runFn3)
 import Data.Int as Int
-import Data.Maybe (maybe)
+import Data.List.NonEmpty (NonEmptyList)
+import Data.List.NonEmpty as NEL
+import Data.Maybe (Maybe(..), maybe)
 import Data.String (toChar)
 
 -- | A type for _foreign data_.
@@ -40,37 +48,42 @@ import Data.String (toChar)
 -- |
 -- | - To represent responses from web services
 -- | - To integrate with external JavaScript libraries.
-foreign import data Foreign :: *
+foreign import data Foreign :: Type
 
--- | A type for runtime type errors
+-- | A type for foreign type errors
 data ForeignError
-  = TypeMismatch String String
+  = ForeignError String
+  | TypeMismatch String String
   | ErrorAtIndex Int ForeignError
   | ErrorAtProperty String ForeignError
   | JSONError String
 
+derive instance eqForeignError :: Eq ForeignError
+derive instance ordForeignError :: Ord ForeignError
+
 instance showForeignError :: Show ForeignError where
-  show (TypeMismatch exp act) = "Type mismatch: expected " <> exp <> ", found " <> act
-  show (ErrorAtIndex i e) = "Error at array index " <> show i <> ": " <> show e
-  show (ErrorAtProperty prop e) = "Error at property " <> show prop <> ": " <> show e
-  show (JSONError s) = "JSON error: " <> s
+  show (ForeignError msg) = "(ForeignError " <> show msg <> ")"
+  show (ErrorAtIndex i e) = "(ErrorAtIndex " <> show i <> " " <> show e <> ")"
+  show (ErrorAtProperty prop e) = "(ErrorAtProperty " <> show prop <> " " <> show e <> ")"
+  show (JSONError s) = "(JSONError " <> show s <> ")"
+  show (TypeMismatch exps act) = "(TypeMismatch " <> show exps <> " " <> show act <> ")"
 
-instance eqForeignError :: Eq ForeignError where
-  eq (TypeMismatch a b) (TypeMismatch a' b') = a == a' && b == b'
-  eq (ErrorAtIndex i e) (ErrorAtIndex i' e') = i == i' && e == e'
-  eq (ErrorAtProperty p e) (ErrorAtProperty p' e') = p == p' && e == e'
-  eq (JSONError s) (JSONError s') = s == s'
-  eq _ _ = false
+-- | A type for accumulating multiple `ForeignError`s.
+type MultipleErrors = NonEmptyList ForeignError
 
--- | An error monad, used in this library to encode possible failure when
+renderForeignError :: ForeignError -> String
+renderForeignError (ForeignError msg) = msg
+renderForeignError (ErrorAtIndex i e) = "Error at array index " <> show i <> ": " <> show e
+renderForeignError (ErrorAtProperty prop e) = "Error at property " <> show prop <> ": " <> show e
+renderForeignError (JSONError s) = "JSON error: " <> s
+renderForeignError (TypeMismatch exp act) = "Type mismatch: expected " <> exp <> ", found " <> act
+
+-- | An error monad, used in this library to encode possible failures when
 -- | dealing with foreign data.
-type F = Either ForeignError
-
-foreign import parseJSONImpl :: forall r. Fn3 (String -> r) (Foreign -> r) String r
-
--- | Attempt to parse a JSON string, returning the result as foreign data.
-parseJSON :: String -> F Foreign
-parseJSON json = runFn3 parseJSONImpl (Left <<< JSONError) Right json
+-- |
+-- | The `Alt` instance for `Except` allows us to accumulate errors,
+-- | unlike `Either`, which preserves only the last error.
+type F = Except MultipleErrors
 
 -- | Coerce any value to the a `Foreign` value.
 foreign import toForeign :: forall a. a -> Foreign
@@ -89,8 +102,9 @@ foreign import tagOf :: Foreign -> String
 -- | Unsafely coerce a `Foreign` value when the value has a particular `tagOf`
 -- | value.
 unsafeReadTagged :: forall a. String -> Foreign -> F a
-unsafeReadTagged tag value | tagOf value == tag = pure (unsafeFromForeign value)
-unsafeReadTagged tag value = Left (TypeMismatch tag (tagOf value))
+unsafeReadTagged tag value
+  | tagOf value == tag = pure (unsafeFromForeign value)
+  | otherwise = fail $ TypeMismatch tag (tagOf value)
 
 -- | Test whether a foreign value is null
 foreign import isNull :: Foreign -> Boolean
@@ -107,13 +121,10 @@ readString = unsafeReadTagged "String"
 
 -- | Attempt to coerce a foreign value to a `Char`.
 readChar :: Foreign -> F Char
-readChar value = either (const error) fromString (readString value)
+readChar value = mapExcept (either (const error) fromString) (readString value)
   where
-  fromString :: String -> F Char
   fromString = maybe error pure <<< toChar
-
-  error :: F Char
-  error = Left $ TypeMismatch "Char" (tagOf value)
+  error = Left $ NEL.singleton $ TypeMismatch "Char" (tagOf value)
 
 -- | Attempt to coerce a foreign value to a `Boolean`.
 readBoolean :: Foreign -> F Boolean
@@ -125,15 +136,32 @@ readNumber = unsafeReadTagged "Number"
 
 -- | Attempt to coerce a foreign value to an `Int`.
 readInt :: Foreign -> F Int
-readInt value = either (const error) fromNumber (readNumber value)
+readInt value = mapExcept (either (const error) fromNumber) (readNumber value)
   where
-  fromNumber :: Number -> F Int
   fromNumber = maybe error pure <<< Int.fromNumber
-
-  error :: F Int
-  error = Left $ TypeMismatch "Int" (tagOf value)
+  error = Left $ NEL.singleton $ TypeMismatch "Int" (tagOf value)
 
 -- | Attempt to coerce a foreign value to an array.
 readArray :: Foreign -> F (Array Foreign)
-readArray value | isArray value = pure $ unsafeFromForeign value
-readArray value = Left (TypeMismatch "array" (tagOf value))
+readArray value
+  | isArray value = pure $ unsafeFromForeign value
+  | otherwise = fail $ TypeMismatch "array" (tagOf value)
+
+readNull :: Foreign -> F (Maybe Foreign)
+readNull value
+  | isNull value = pure Nothing
+  | otherwise = pure (Just value)
+
+readUndefined :: Foreign -> F (Maybe Foreign)
+readUndefined value
+  | isUndefined value = pure Nothing
+  | otherwise = pure (Just value)
+
+readNullOrUndefined :: Foreign -> F (Maybe Foreign)
+readNullOrUndefined value
+  | isNull value || isUndefined value = pure Nothing
+  | otherwise = pure (Just value)
+
+-- | Throws a failure error in `F`.
+fail :: forall a. ForeignError -> F a
+fail = throwError <<< NEL.singleton

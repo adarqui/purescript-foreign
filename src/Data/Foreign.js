@@ -1,18 +1,5 @@
-/* global exports */
 "use strict";
 
-// module Data.Foreign
-
-// jshint maxparams: 3
-exports.parseJSONImpl = function (left, right, str) {
-  try {
-    return right(JSON.parse(str));
-  } catch (e) {
-    return left(e.toString());
-  }
-};
-
-// jshint maxparams: 1
 exports.toForeign = function (value) {
   return value;
 };

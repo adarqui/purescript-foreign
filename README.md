@@ -1,15 +1,9 @@
 # purescript-foreign
 
-[![Latest release](http://img.shields.io/bower/v/purescript-foreign.svg)](https://github.com/purescript/purescript-foreign/releases)
-[![Build Status](https://travis-ci.org/purescript/purescript-foreign.svg?branch=master)](https://travis-ci.org/purescript/purescript-foreign)
-[![Dependency Status](https://www.versioneye.com/user/projects/55848c14363861001d00030e/badge.svg?style=flat)](https://www.versioneye.com/user/projects/55848c14363861001d00030e)
+[![Latest release](http://img.shields.io/github/release/purescript/purescript-foreign.svg)](https://github.com/purescript/purescript-foreign/releases)
+[![Build status](https://travis-ci.org/purescript/purescript-foreign.svg?branch=master)](https://travis-ci.org/purescript/purescript-foreign)
 
-
-**MODIFIED**
-
-Adds instances for Maybe and Tuple.
-
-Library for dealing with foreign data (JSON and JavaScript objects).
+Library for dealing with foreign data (JavaScript objects).
 
 ## Installation
 
@@ -19,8 +13,8 @@ bower install purescript-foreign
 
 ## Examples
 
-- [Simple JSON types](examples/JSONSimpleTypes.purs)
-- [Arrays](examples/JSONArrays.purs)
+- [Simple types](examples/SimpleTypes.purs)
+- [Arrays](examples/Arrays.purs)
 - [Objects](examples/Objects.purs)
 - [Complex objects](examples/Complex.purs)
 - [Applicative style parser](examples/Applicative.purs)

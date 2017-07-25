@@ -1,14 +1,9 @@
-/* global exports */
 "use strict";
 
-// module Data.Foreign.Index
-
-// jshint maxparams: 4
 exports.unsafeReadPropImpl = function (f, s, key, value) {
   return value == null ? f : s(value[key]);
 };
 
-// jshint maxparams: 2
 exports.unsafeHasOwnProperty = function (prop, value) {
   return Object.prototype.hasOwnProperty.call(value, prop);
 };
